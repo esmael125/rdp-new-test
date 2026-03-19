@@ -1,4 +1,4 @@
-name: RDP-NGROK-SUCCESS
+name: RDP-NGROK-ULTIMATE
 
 on:
   workflow_dispatch:
@@ -18,20 +18,14 @@ jobs:
         $Password = ConvertTo-SecureString "${{ secrets.RDP_PASSWORD }}" -AsPlainText -Force
         Set-LocalUser -Name "runneradmin" -Password $Password
 
-    - name: Download Ngrok
+    - name: Install Ngrok via Choco
       run: |
-        $url = "https://bin.equinox.io/c/b34edq6ii9y/ngrok-v3-stable-windows-amd64.zip"
-        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-        Invoke-WebRequest -Uri $url -OutFile "ngrok.zip"
+        choco install ngrok -y
 
-    - name: Extract Ngrok
+    - name: Auth and Start Ngrok
       run: |
-        Expand-Archive -Path "ngrok.zip" -DestinationPath "." -Force
-
-    - name: Auth and Start
-      run: |
-        .\ngrok.exe config add-authtoken "${{ secrets.NGROK_AUTH_TOKEN }}"
-        Start-Process .\ngrok.exe -ArgumentList "tcp 3389"
+        ngrok config add-authtoken "${{ secrets.NGROK_AUTH_TOKEN }}"
+        Start-Process ngrok -ArgumentList "tcp 3389"
         Start-Sleep -Seconds 30
 
     - name: Get Address
