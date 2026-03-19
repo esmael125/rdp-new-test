@@ -13,11 +13,12 @@ jobs:
         Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
         Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 1
 
-    - name: Create User Admin
+    - name: Update User Password
       run: |
         $Password = ConvertTo-SecureString "${{ secrets.RDP_PASSWORD }}" -AsPlainText -Force
-        New-LocalUser "runneradmin" -Password $Password -Description "RDP User"
-        Add-LocalGroupMember -Group "Administrators" -Member "runneradmin"
+        # تحديث كلمة السر للمستخدم الموجود وتفعيله
+        Set-LocalUser -Name "runneradmin" -Password $Password
+        Write-Host "Password for runneradmin has been updated successfully."
 
     - name: Download and Setup Ngrok
       run: |
@@ -28,16 +29,16 @@ jobs:
     - name: Start Ngrok Tunnel
       run: |
         Start-Process .\ngrok\ngrok.exe -ArgumentList "tcp 3389"
-        Start-Sleep -Seconds 10
+        Start-Sleep -Seconds 15
 
     - name: Get RDP Address
       run: |
         $response = Invoke-RestMethod -Uri http://localhost:4040/api/tunnels
         $address = $response.tunnels[0].public_url
+        $cleanAddress = $address.Replace("tcp://", "")
         Write-Host "--------------------------------------------------------"
-        Write-Host "Connect to RDP using this address: $address"
+        Write-Host "Connect to RDP using this address: $cleanAddress"
         Write-Host "Username: runneradmin"
-        Write-Host "Password: Use the one in your Secrets"
         Write-Host "--------------------------------------------------------"
 
     - name: Keep Alive
