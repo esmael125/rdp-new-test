@@ -1,4 +1,4 @@
-name: RDP-NGROK-FINAL-VERSION
+name: RDP-LOOPHOLE-STABLE
 
 on:
   workflow_dispatch:
@@ -18,39 +18,26 @@ jobs:
         $Password = ConvertTo-SecureString "${{ secrets.RDP_PASSWORD }}" -AsPlainText -Force
         Set-LocalUser -Name "runneradmin" -Password $Password
 
-    - name: Install Ngrok
-      run: choco install ngrok -y
-
-    - name: Auth and Start Ngrok
+    - name: Setup Loophole
       run: |
-        ngrok config add-authtoken "${{ secrets.NGROK_AUTH_TOKEN }}"
-        # تشغيل ngrok في نافذة منفصلة لضمان استمراره
-        Start-Process ngrok -ArgumentList "tcp 3389" -WindowStyle Hidden
-        # انتظر 45 ثانية كاملة لضمان فتح النفق
-        Start-Sleep -Seconds 45
+        Invoke-WebRequest https://github.com/loophole/cli/releases/download/1.0.0-beta.15/loophole_windows_64bit.zip -OutFile loophole.zip
+        Expand-Archive loophole.zip -DestinationPath .
+
+    - name: Start Loophole Tunnel
+      run: |
+        # تشغيل النفق لمنفذ RDP 3389
+        Start-Process .\loophole.exe -ArgumentList "tcp 3389 --nopass Name=karim-rdp" -WindowStyle Hidden
+        Start-Sleep -Seconds 30
 
     - name: Get Address
       run: |
-        # محاولة الحصول على البيانات مع تكرار المحاولة إذا فشلت
-        $MaxRetries = 5
-        $RetryCount = 0
-        $Success = $false
-        while (-not $Success -and $RetryCount -lt $MaxRetries) {
-            try {
-                $query = Invoke-RestMethod -Uri http://localhost:4040/api/tunnels
-                $url = $query.tunnels[0].public_url
-                $clean = $url.Replace("tcp://", "")
-                Write-Host "------------------------------------"
-                Write-Host "SUCCESS! CONNECT TO: $clean"
-                Write-Host "------------------------------------"
-                $Success = $true
-            } catch {
-                $RetryCount++
-                Write-Host "Waiting for Ngrok to start... (Attempt $RetryCount)"
-                Start-Sleep -Seconds 10
-            }
-        }
-        if (-not $Success) { throw "Ngrok failed to start in time." }
+        Write-Host "------------------------------------"
+        Write-Host "CONNECT TO: karim-rdp.loophole.host"
+        Write-Host "PORT: (Check Loophole Terminal if needed)"
+        Write-Host "USERNAME: runneradmin"
+        Write-Host "------------------------------------"
+        Write-Host "If the above host doesn't work directly, check the logs below:"
+        ./loophole.exe --version
 
     - name: Keep Online
       run: Start-Sleep -Seconds 21600
