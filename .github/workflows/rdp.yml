@@ -1,4 +1,4 @@
-name: RDP-LOOPHOLE-STABLE
+name: RDP-FINAL-STABLE
 
 on:
   workflow_dispatch:
@@ -7,37 +7,51 @@ jobs:
   setup-rdp:
     runs-on: windows-latest
     steps:
-    - name: Configure Windows
+    - name: Enable RDP
       run: |
         Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
         Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
         Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 1
 
-    - name: Set Password
+    - name: Set Admin Password
       run: |
         $Password = ConvertTo-SecureString "${{ secrets.RDP_PASSWORD }}" -AsPlainText -Force
         Set-LocalUser -Name "runneradmin" -Password $Password
 
-    - name: Setup Loophole
+    - name: Download & Install Ngrok
       run: |
-        Invoke-WebRequest https://github.com/loophole/cli/releases/download/1.0.0-beta.15/loophole_windows_64bit.zip -OutFile loophole.zip
-        Expand-Archive loophole.zip -DestinationPath .
+        # استخدام Chocolatey المثبت مسبقاً في GitHub لضمان التحميل من مصدر موثوق
+        choco install ngrok -y
 
-    - name: Start Loophole Tunnel
+    - name: Authenticate Ngrok
       run: |
-        # تشغيل النفق لمنفذ RDP 3389
-        Start-Process .\loophole.exe -ArgumentList "tcp 3389 --nopass Name=karim-rdp" -WindowStyle Hidden
-        Start-Sleep -Seconds 30
+        ngrok config add-authtoken "${{ secrets.NGROK_AUTH_TOKEN }}"
 
-    - name: Get Address
+    - name: Open RDP Tunnel
       run: |
-        Write-Host "------------------------------------"
-        Write-Host "CONNECT TO: karim-rdp.loophole.host"
-        Write-Host "PORT: (Check Loophole Terminal if needed)"
-        Write-Host "USERNAME: runneradmin"
-        Write-Host "------------------------------------"
-        Write-Host "If the above host doesn't work directly, check the logs below:"
-        ./loophole.exe --version
+        # تشغيل النفق في الخلفية مع توفير وقت كافٍ للانطلاق
+        Start-Process ngrok -ArgumentList "tcp 3389" -WindowStyle Hidden
+        Start-Sleep -Seconds 60
 
-    - name: Keep Online
+    - name: Display Connection Details
+      run: |
+        $ErrorActionPreference = 'SilentlyContinue'
+        $query = Invoke-RestMethod -Uri http://localhost:4040/api/tunnels
+        if ($query) {
+            $url = $query.tunnels[0].public_url
+            $cleanAddress = $url.Replace("tcp://", "")
+            Write-Host "------------------------------------------------"
+            Write-Host "CONGRATULATIONS! CONNECT TO: $cleanAddress"
+            Write-Host "USERNAME: runneradmin"
+            Write-Host "------------------------------------------------"
+        } else {
+            Write-Host "Ngrok is still starting, checking again..."
+            Start-Sleep -Seconds 20
+            $query = Invoke-RestMethod -Uri http://localhost:4040/api/tunnels
+            $url = $query.tunnels[0].public_url
+            $cleanAddress = $url.Replace("tcp://", "")
+            Write-Host "CONNECT TO: $cleanAddress"
+        }
+
+    - name: Keep Runner Alive
       run: Start-Sleep -Seconds 21600
