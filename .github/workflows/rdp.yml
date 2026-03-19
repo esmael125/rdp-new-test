@@ -1,4 +1,4 @@
-name: NGROK-RDP
+name: NGROK-RDP-FINAL
 
 on:
   workflow_dispatch:
@@ -16,20 +16,20 @@ jobs:
     - name: Update User Password
       run: |
         $Password = ConvertTo-SecureString "${{ secrets.RDP_PASSWORD }}" -AsPlainText -Force
-        # تحديث كلمة السر للمستخدم الموجود وتفعيله
         Set-LocalUser -Name "runneradmin" -Password $Password
-        Write-Host "Password for runneradmin has been updated successfully."
+        Write-Host "Password updated."
 
     - name: Download and Setup Ngrok
       run: |
-        Invoke-WebRequest https://bin.equinox.io/c/b34edq6ii9y/ngrok-v3-stable-windows-amd64.zip -OutFile ngrok.zip
-        Expand-Archive ngrok.zip
+        # استخدام curl لأنه أكثر قوة في التعامل مع الروابط المعاد توجيهها
+        curl -L -o ngrok.zip https://bin.equinox.io/c/b34edq6ii9y/ngrok-v3-stable-windows-amd64.zip
+        Expand-Archive ngrok.zip -DestinationPath .\ngrok
         .\ngrok\ngrok.exe config add-authtoken "${{ secrets.NGROK_AUTH_TOKEN }}"
 
     - name: Start Ngrok Tunnel
       run: |
         Start-Process .\ngrok\ngrok.exe -ArgumentList "tcp 3389"
-        Start-Sleep -Seconds 15
+        Start-Sleep -Seconds 20
 
     - name: Get RDP Address
       run: |
