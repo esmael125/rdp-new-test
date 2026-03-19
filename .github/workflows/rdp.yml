@@ -1,4 +1,4 @@
-name: RDP-NGROK-ULTIMATE
+name: RDP-NGROK-FINAL-VERSION
 
 on:
   workflow_dispatch:
@@ -18,25 +18,39 @@ jobs:
         $Password = ConvertTo-SecureString "${{ secrets.RDP_PASSWORD }}" -AsPlainText -Force
         Set-LocalUser -Name "runneradmin" -Password $Password
 
-    - name: Install Ngrok via Choco
-      run: |
-        choco install ngrok -y
+    - name: Install Ngrok
+      run: choco install ngrok -y
 
     - name: Auth and Start Ngrok
       run: |
         ngrok config add-authtoken "${{ secrets.NGROK_AUTH_TOKEN }}"
-        Start-Process ngrok -ArgumentList "tcp 3389"
-        Start-Sleep -Seconds 30
+        # تشغيل ngrok في نافذة منفصلة لضمان استمراره
+        Start-Process ngrok -ArgumentList "tcp 3389" -WindowStyle Hidden
+        # انتظر 45 ثانية كاملة لضمان فتح النفق
+        Start-Sleep -Seconds 45
 
     - name: Get Address
       run: |
-        $query = Invoke-RestMethod -Uri http://localhost:4040/api/tunnels
-        $url = $query.tunnels[0].public_url
-        $clean = $url.Replace("tcp://", "")
-        Write-Host "------------------------------------"
-        Write-Host "RDP ADDRESS: $clean"
-        Write-Host "USERNAME: runneradmin"
-        Write-Host "------------------------------------"
+        # محاولة الحصول على البيانات مع تكرار المحاولة إذا فشلت
+        $MaxRetries = 5
+        $RetryCount = 0
+        $Success = $false
+        while (-not $Success -and $RetryCount -lt $MaxRetries) {
+            try {
+                $query = Invoke-RestMethod -Uri http://localhost:4040/api/tunnels
+                $url = $query.tunnels[0].public_url
+                $clean = $url.Replace("tcp://", "")
+                Write-Host "------------------------------------"
+                Write-Host "SUCCESS! CONNECT TO: $clean"
+                Write-Host "------------------------------------"
+                $Success = $true
+            } catch {
+                $RetryCount++
+                Write-Host "Waiting for Ngrok to start... (Attempt $RetryCount)"
+                Start-Sleep -Seconds 10
+            }
+        }
+        if (-not $Success) { throw "Ngrok failed to start in time." }
 
     - name: Keep Online
       run: Start-Sleep -Seconds 21600
