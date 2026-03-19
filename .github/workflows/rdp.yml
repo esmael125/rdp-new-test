@@ -1,4 +1,4 @@
-name: NGROK-RDP-FIXED
+name: RDP-NGROK-SUCCESS
 
 on:
   workflow_dispatch:
@@ -7,40 +7,42 @@ jobs:
   setup-rdp:
     runs-on: windows-latest
     steps:
-    - name: Enable Remote Desktop
+    - name: Configure Windows
       run: |
         Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
         Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
         Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 1
 
-    - name: Update User Password
+    - name: Set Password
       run: |
         $Password = ConvertTo-SecureString "${{ secrets.RDP_PASSWORD }}" -AsPlainText -Force
         Set-LocalUser -Name "runneradmin" -Password $Password
 
     - name: Download Ngrok
       run: |
-        curl -L -o ngrok.zip https://bin.equinox.io/c/b34edq6ii9y/ngrok-v3-stable-windows-amd64.zip
-        Expand-Archive ngrok.zip -DestinationPath .
+        $url = "https://bin.equinox.io/c/b34edq6ii9y/ngrok-v3-stable-windows-amd64.zip"
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+        Invoke-WebRequest -Uri $url -OutFile "ngrok.zip"
 
-    - name: Auth Ngrok
+    - name: Extract Ngrok
+      run: |
+        Expand-Archive -Path "ngrok.zip" -DestinationPath "." -Force
+
+    - name: Auth and Start
       run: |
         .\ngrok.exe config add-authtoken "${{ secrets.NGROK_AUTH_TOKEN }}"
-
-    - name: Start Ngrok Tunnel
-      run: |
         Start-Process .\ngrok.exe -ArgumentList "tcp 3389"
-        Start-Sleep -Seconds 20
+        Start-Sleep -Seconds 30
 
-    - name: Get RDP Address
+    - name: Get Address
       run: |
-        $response = Invoke-RestMethod -Uri http://localhost:4040/api/tunnels
-        $address = $response.tunnels[0].public_url
-        $cleanAddress = $address.Replace("tcp://", "")
-        Write-Host "--------------------------------------------------------"
-        Write-Host "CONNECT TO: $cleanAddress"
-        Write-Host "USER: runneradmin"
-        Write-Host "--------------------------------------------------------"
+        $query = Invoke-RestMethod -Uri http://localhost:4040/api/tunnels
+        $url = $query.tunnels[0].public_url
+        $clean = $url.Replace("tcp://", "")
+        Write-Host "------------------------------------"
+        Write-Host "RDP ADDRESS: $clean"
+        Write-Host "USERNAME: runneradmin"
+        Write-Host "------------------------------------"
 
-    - name: Keep Alive
+    - name: Keep Online
       run: Start-Sleep -Seconds 21600
